@@ -1,0 +1,1028 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Flow Visualization around a hydrofoil | Vedant Wakale</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Mono:wght@400;500&family=Inter:wght@300;400;500;600&display=swap');
+
+:root {
+  --bg: #f2f5f7;
+  --surface: #ffffff;
+  --border: #d6dde3;
+  --text: #0d1b26;
+  --muted: #5a6a78;
+  --orange: #e8651a;
+  --orange-light: #f5a76a;
+  --blue: #0e5a8a;
+  --blue-mid: #2e7db8;
+  --blue-light: #7ab8d8;
+  --sea: #0a3d5c;
+  --foil: #6a8fa8;
+  --foil-stroke: #3d6478;
+  --accent-red: #c0392b;
+  --accent-green: #1e8449;
+  --shadow: 0 2px 16px rgba(13,27,38,0.10);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Inter', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+}
+
+/* ── body bg ── */
+body { background: var(--bg); }
+
+.container { max-width: 1100px; margin: 0 auto; padding: 2rem 2rem; }
+
+/* ── Section titles ── */
+.section-title {
+  font-family: 'DM Serif Display', serif;
+  font-size: 1.5rem;
+  font-weight: 400;
+  color: var(--text);
+  border-left: 3px solid var(--blue);
+  padding-left: 1rem;
+  margin: 2.5rem 0 1.2rem;
+}
+.section-intro {
+  font-size: 14px;
+  color: var(--muted);
+  margin-bottom: 1.2rem;
+  max-width: 760px;
+}
+
+/* ── Cards ── */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: var(--shadow);
+  margin-bottom: 1.2rem;
+}
+
+/* ── Canvas ── */
+canvas {
+  display: block;
+  width: 100%;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: #f0ede6;
+}
+
+/* ── Controls ── */
+.controls-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  margin: 1rem 0;
+}
+.ctrl-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ctrl-item label {
+  font-size: 11px;
+  font-family: 'DM Mono', monospace;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.ctrl-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ctrl-row input[type=range] {
+  flex: 1;
+  height: 4px;
+  -webkit-appearance: none;
+  background: var(--border);
+  border-radius: 2px;
+  outline: none;
+}
+.ctrl-row input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: var(--orange);
+  cursor: pointer;
+}
+.ctrl-val {
+  font-family: 'DM Mono', monospace;
+  font-size: 13px;
+  font-weight: 500;
+  min-width: 44px;
+  text-align: right;
+  color: var(--text);
+}
+
+/* ── Buttons ── */
+.btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin: 0.8rem 0; }
+button {
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 7px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+button:hover { background: var(--bg); border-color: var(--muted); }
+button.primary {
+  background: var(--orange);
+  border-color: var(--orange);
+  color: #fff;
+}
+button.primary:hover { background: #c85510; }
+
+/* ── Stats strip ── */
+.stats-strip {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin: 1rem 0 0;
+}
+.stat-box {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 14px;
+}
+.stat-box .slabel {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  margin-bottom: 3px;
+}
+.stat-box .sval {
+  font-family: 'DM Mono', monospace;
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+/* ── Circulation chart ── */
+#circ-canvas { background: #fff; }
+
+/* ── Theory section ── */
+.theory-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+@media(max-width:640px){ .theory-grid { grid-template-columns: 1fr; } .stats-strip { grid-template-columns: 1fr 1fr; } }
+
+.theory-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1.2rem;
+}
+.theory-card h3 {
+  font-family: 'DM Serif Display', serif;
+  font-size: 1rem;
+  font-weight: 400;
+  margin-bottom: 0.6rem;
+  color: var(--text);
+}
+.theory-card p {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.7;
+}
+.eq {
+  font-family: 'DM Mono', monospace;
+  font-size: 13px;
+  background: var(--bg);
+  border-left: 3px solid var(--orange);
+  padding: 8px 12px;
+  margin: 10px 0;
+  border-radius: 0 6px 6px 0;
+  color: var(--text);
+}
+
+/* ── Footer ── */
+.footer {
+  background: var(--sea);
+  color: rgba(255,255,255,0.38);
+  text-align: center;
+  font-size: 12px;
+  padding: 1.8rem;
+  margin-top: 3rem;
+  font-family: 'DM Mono', monospace;
+  border-top: 3px solid var(--orange);
+}
+.footer span { color: var(--orange-light); }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════ COVER ═══════════════════════════════════ -->
+<div class="cover">
+  <div class="cover-waves">
+    <svg viewBox="0 0 1200 80" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0,40 C200,10 400,70 600,40 C800,10 1000,70 1200,40 L1200,80 L0,80 Z" fill="rgba(255,255,255,0.06)"/>
+      <path d="M0,55 C150,30 350,80 600,55 C850,30 1050,80 1200,55 L1200,80 L0,80 Z" fill="rgba(255,255,255,0.04)"/>
+    </svg>
+  </div>
+  <div class="cover-inner">
+    <div class="cover-left">
+      <div class="cover-institute">Indian Institute of Technology Kharagpur</div>
+      <div class="cover-dept">Department of Ocean Engineering &amp; Naval Architecture</div>
+      <div class="cover-divider"></div>
+      <div class="cover-course-tag">NA20202 · Marine Hydrodynamics</div>
+      <h1 class="cover-title">Flow Visualization<br>around a Hydrofoil</h1>
+      <p class="cover-desc">
+        Interactive vortex panel method simulation — real-time particle advection,
+        pressure coefficient distribution, Kutta–Joukowski circulation analysis,
+        and stagnation point tracking for a symmetric hydrofoil at varying angles of attack.
+      </p>
+    </div>
+    <div class="cover-right">
+      <div class="cover-card">
+        <div class="cover-field"><span class="cf-label">Student</span><span class="cf-val">Vedant Wakale</span></div>
+        <div class="cover-field"><span class="cf-label">Roll No.</span><span class="cf-val">24NA10079</span></div>
+        <div class="cover-field"><span class="cf-label">Subject</span><span class="cf-val">NA20202</span></div>
+        <div class="cover-field"><span class="cf-label">Foil</span><span class="cf-val">NACA 0012 (symmetric)</span></div>
+        <div class="cover-field"><span class="cf-label">Method</span><span class="cf-val">Vortex Panel + K–J</span></div>
+        <div class="cover-field"><span class="cf-label">Medium</span><span class="cf-val">Seawater (ρ = 1025 kg/m³)</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+.cover {
+  background: var(--sea);
+  color: #fff;
+  padding: 0;
+  position: relative;
+  overflow: hidden;
+}
+.cover::before {
+  content:'';
+  position:absolute;
+  inset:0;
+  background: linear-gradient(135deg, #0a3d5c 0%, #0e5a8a 55%, #0a4a72 100%);
+}
+.cover::after {
+  content:'';
+  position:absolute;
+  bottom:0; left:0; right:0;
+  height:4px;
+  background: linear-gradient(90deg, var(--orange), var(--blue-mid), var(--orange));
+}
+.cover-waves {
+  position:absolute;
+  bottom:0; left:0; right:0;
+  height:80px;
+  pointer-events:none;
+}
+.cover-waves svg { width:100%; height:100%; }
+.cover-inner {
+  position:relative;
+  z-index:1;
+  max-width:1100px;
+  margin:0 auto;
+  padding:3rem 2rem 3.5rem;
+  display:grid;
+  grid-template-columns:1fr 340px;
+  gap:2.5rem;
+  align-items:start;
+}
+@media(max-width:720px){.cover-inner{grid-template-columns:1fr;}}
+.cover-institute {
+  font-family:'DM Mono',monospace;
+  font-size:11px;
+  letter-spacing:0.14em;
+  text-transform:uppercase;
+  color:rgba(255,255,255,0.5);
+  margin-bottom:2px;
+}
+.cover-dept {
+  font-size:13px;
+  color:rgba(255,255,255,0.65);
+  margin-bottom:1.2rem;
+}
+.cover-divider {
+  width:48px; height:2px;
+  background:var(--orange);
+  margin-bottom:1rem;
+}
+.cover-course-tag {
+  font-family:'DM Mono',monospace;
+  font-size:11px;
+  letter-spacing:0.1em;
+  color:var(--orange-light);
+  text-transform:uppercase;
+  margin-bottom:0.7rem;
+}
+.cover-title {
+  font-family:'DM Serif Display',serif;
+  font-size:clamp(2rem,4vw,3rem);
+  font-weight:400;
+  color:#fff;
+  line-height:1.12;
+  margin-bottom:1rem;
+}
+.cover-desc {
+  font-size:13.5px;
+  color:rgba(255,255,255,0.60);
+  line-height:1.75;
+  max-width:520px;
+}
+.cover-card {
+  background:rgba(255,255,255,0.07);
+  border:1px solid rgba(255,255,255,0.13);
+  border-radius:12px;
+  padding:1.4rem 1.6rem;
+  backdrop-filter:blur(4px);
+}
+.cover-field {
+  display:flex;
+  justify-content:space-between;
+  align-items:baseline;
+  padding:7px 0;
+  border-bottom:1px solid rgba(255,255,255,0.08);
+}
+.cover-field:last-child{border-bottom:none;}
+.cf-label {
+  font-family:'DM Mono',monospace;
+  font-size:10px;
+  text-transform:uppercase;
+  letter-spacing:0.09em;
+  color:rgba(255,255,255,0.40);
+}
+.cf-val {
+  font-size:13px;
+  font-weight:500;
+  color:#fff;
+  text-align:right;
+}
+</style>
+
+<div class="container">
+
+<!-- ═══════════════════════════════ SECTION 1: LIVE SIM ══════════════════════════ -->
+<div class="section-title">1. Live Particle Flow Simulation</div>
+<p class="section-intro">
+  Particles advected through the potential flow field of a NACA 0012 hydrofoil operating in seawater.
+  The velocity field is computed using a distributed vortex sheet (thin-airfoil theory).
+  Colour encodes local fluid speed — blue indicates slow/stagnant regions, orange indicates
+  high-velocity zones. Orange arrows show surface flow direction per the reference diagram.
+  Stagnation points S₁ (leading edge) and S₂ (trailing edge) are tracked live.
+</p>
+
+<div class="card">
+  <canvas id="simCanvas" height="460"></canvas>
+
+  <div class="controls-grid" style="margin-top:1rem;">
+    <div class="ctrl-item">
+      <label>Angle of attack</label>
+      <div class="ctrl-row">
+        <input type="range" id="aoa" min="-12" max="18" value="6" step="1">
+        <span class="ctrl-val" id="aoa-v">6°</span>
+      </div>
+    </div>
+    <div class="ctrl-item">
+      <label>Flow speed U∞</label>
+      <div class="ctrl-row">
+        <input type="range" id="spd" min="1" max="5" value="2" step="1">
+        <span class="ctrl-val" id="spd-v">2 m/s</span>
+      </div>
+    </div>
+    <div class="ctrl-item">
+      <label>Particle count</label>
+      <div class="ctrl-row">
+        <input type="range" id="pcount" min="60" max="350" value="180" step="10">
+        <span class="ctrl-val" id="pcount-v">180</span>
+      </div>
+    </div>
+    <div class="ctrl-item">
+      <label>Trail length</label>
+      <div class="ctrl-row">
+        <input type="range" id="trail" min="10" max="120" value="60" step="5">
+        <span class="ctrl-val" id="trail-v">60</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="btn-row">
+    <button class="primary" onclick="togglePause()" id="pauseBtn">⏸ Pause</button>
+    <button onclick="resetParticles()">↺ Reset</button>
+    <button onclick="toggleTrails()" id="trailBtn">〰 Hide trails</button>
+    <button onclick="toggleArrows()" id="arrowBtn">↗ Hide arrows</button>
+  </div>
+
+  <div class="stats-strip">
+    <div class="stat-box"><div class="slabel">Lift coeff. CL</div><div class="sval" id="cl">—</div></div>
+    <div class="stat-box"><div class="slabel">Γ circulation</div><div class="sval" id="gamma">—</div></div>
+    <div class="stat-box"><div class="slabel">Front stag. x</div><div class="sval" id="sf">—</div></div>
+    <div class="stat-box"><div class="slabel">Max speed</div><div class="sval" id="vm">—</div></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════ SECTION 2: CIRCULATION ═══════════════════════ -->
+<div class="section-title">2. Circulation Effects Study</div>
+<p class="section-intro">
+  In marine hydrodynamics, circulation Γ is the governing mechanism behind hydrofoil lift generation.
+  By the Kutta–Joukowski theorem, the hydrodynamic lift per unit span is L′ = ρ U∞ Γ, where
+  ρ = 1025 kg/m³ for seawater. The chart below plots lift coefficient C<sub>L</sub>,
+  scaled circulation Γ, and surface velocity ratio V<sub>t</sub>/U∞ as functions of angle of attack,
+  revealing the linear attached-flow regime and theoretical stall onset around α ≈ 14°–16°.
+</p>
+
+<div class="card">
+  <canvas id="circCanvas" height="300"></canvas>
+</div>
+
+<div class="theory-grid">
+  <div class="theory-card">
+    <h3>Kutta–Joukowski Theorem</h3>
+    <p>The lift per unit span on a body in potential flow equals the product of fluid density,
+    freestream velocity, and the total circulation around the body:</p>
+    <div class="eq">L′ = ρ · U∞ · Γ</div>
+    <p>For a thin symmetric aerofoil the circulation grows linearly with angle of attack
+    in the attached-flow regime (α ≲ 15°), giving a lift-curve slope of 2π per radian.</p>
+  </div>
+  <div class="theory-card">
+    <h3>Vortex Sheet Model</h3>
+    <p>The foil surface is replaced by N panels each carrying a vortex of strength γ (m/s).
+    The no-penetration condition at each panel midpoint yields a linear system:</p>
+    <div class="eq">Σ Aᵢⱼ γⱼ = −V∞·n̂ᵢ</div>
+    <p>The Kutta condition (γ_TE = 0) is enforced as an additional equation. Total circulation
+    Γ = Σ γⱼ Δsⱼ, from which CL = 2Γ / (U∞ · c).</p>
+  </div>
+  <div class="theory-card">
+    <h3>Pressure Distribution</h3>
+    <p>Local surface pressure is found from Bernoulli's equation. The pressure coefficient is:</p>
+    <div class="eq">Cp = 1 − (Vt / U∞)²</div>
+    <p>Suction peaks appear near the leading edge on the upper surface; higher α sharpens
+    the suction peak and moves it further forward, eventually causing separation.</p>
+  </div>
+  <div class="theory-card">
+    <h3>Stagnation Points</h3>
+    <p>Two stagnation points exist where |V| → 0. At α = 0° both sit symmetrically at the
+    leading edge and trailing edge. As α increases:</p>
+    <div class="eq">x_S₁ ≈ 0.5(1 − cos α · 0.9)</div>
+    <p>S₁ migrates to the pressure (lower) surface. S₂ stays near the trailing edge by
+    the Kutta condition, which enforces smooth flow departure there.</p>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════ SECTION 3: Cp PLOT ═══════════════════════════ -->
+<div class="section-title">3. Pressure Coefficient Distribution</div>
+<p class="section-intro">
+  Cp plotted along chord (x/c) for upper and lower surfaces at the current angle of attack.
+  Suction (−Cp peak) on the upper surface drives lift. Update AoA in Section 1 and click Replot.
+</p>
+<div class="card">
+  <canvas id="cpCanvas" height="260"></canvas>
+  <div class="btn-row" style="margin-top:0.8rem;">
+    <button class="primary" onclick="drawCp()">↺ Replot at current α</button>
+  </div>
+</div>
+
+</div><!-- /container -->
+
+<div class="footer">
+  <div style="margin-bottom:6px;color:#7ab8d8;font-size:13px;font-family:'DM Serif Display',serif;font-weight:400;">
+    Flow Visualization around a Hydrofoil — Project Submission
+  </div>
+  <span style="color:#fff;">Vedant Wakale</span> &nbsp;·&nbsp;
+  Roll No. <span>24NA10079</span> &nbsp;·&nbsp;
+  <span>NACA 0012 Hydrofoil</span> &nbsp;·&nbsp;
+  Vortex Panel Method &nbsp;·&nbsp;
+  IIT Kharagpur — Dept. of Ocean Engineering &amp; Naval Architecture
+</div>
+
+<!-- ════════════════════════════════ JAVASCRIPT ══════════════════════════════════ -->
+<script>
+/* ── Foil geometry ── */
+function naca0012y(x){
+  if(x<=0) return 0;
+  return 5*0.12*(0.2969*Math.sqrt(x)-0.126*x-0.3516*x*x+0.2843*x*x*x-0.1015*x*x*x*x);
+}
+function buildFoil(N=130){
+  const upper=[],lower=[];
+  for(let i=0;i<=N;i++){
+    const x=(1-Math.cos(i/N*Math.PI))/2;
+    upper.push({x,y:naca0012y(x)});
+    lower.push({x,y:-naca0012y(x)});
+  }
+  return{upper,lower,all:[...upper,...[...lower].reverse()]};
+}
+const FOIL=buildFoil(130);
+
+function ptInFoil(px,py){
+  const pts=FOIL.all;
+  let inside=false;
+  for(let i=0,j=pts.length-1;i<pts.length;j=i++){
+    const xi=pts[i].x,yi=pts[i].y,xj=pts[j].x,yj=pts[j].y;
+    if(((yi>py)!==(yj>py))&&(px<(xj-xi)*(py-yi)/(yj-yi)+xi))inside=!inside;
+  }
+  return inside;
+}
+
+/* ── Velocity field ── */
+function velocity(x,y,aoa,U){
+  let ux=U*Math.cos(aoa),uy=-U*Math.sin(aoa);
+  const gamma=2*Math.PI*Math.sin(aoa)*U;
+  const N=70;
+  for(let i=0;i<N;i++){
+    const t0=i/N,t1=(i+1)/N,tm=(t0+t1)/2;
+    const xm=(1-Math.cos(tm*Math.PI))/2;
+    const x0=(1-Math.cos(t0*Math.PI))/2,x1=(1-Math.cos(t1*Math.PI))/2;
+    const y0s=naca0012y(x0),y1s=naca0012y(x1);
+    const ds=Math.sqrt((x1-x0)**2+(y1s-y0s)**2)*1.4;
+    for(let s=-1;s<=1;s+=2){
+      const sy=s*naca0012y(xm);
+      const dx=x-xm,dy=y-sy,r2=dx*dx+dy*dy;
+      if(r2<4e-5)continue;
+      const str=gamma*ds*0.5;
+      ux+=str*(-dy)/(2*Math.PI*r2);
+      uy+=str*(dx)/(2*Math.PI*r2);
+    }
+  }
+  return{ux,uy};
+}
+
+/* ── Stagnation finder ── */
+function findStag(x0,y0,aoa,U){
+  let fx=x0,fy=y0;
+  for(let i=0;i<400;i++){
+    const{ux,uy}=velocity(fx,fy,aoa,U);
+    const sp=Math.sqrt(ux*ux+uy*uy);
+    if(sp<5e-4)break;
+    fx-=ux*(0.005/U);fy-=uy*(0.005/U);
+  }
+  return{fx,fy};
+}
+
+/* ════════════════════════════════════════════
+   SECTION 1 — Live simulation canvas
+   ════════════════════════════════════════════ */
+const simCanvas=document.getElementById('simCanvas');
+const sctx=simCanvas.getContext('2d');
+let paused=false,showTrails=true,showArrows=true;
+let particles=[];
+let animId=null;
+let frameCount=0;
+let simW,simH,simCX,simCY,simScale;
+
+function updateSimLayout(){
+  simW=simCanvas.width; simH=simCanvas.height;
+  simCX=simW*0.40; simCY=simH*0.50; simScale=simW*0.58;
+}
+function toSimS(fx,fy){return{sx:simCX+(fx-0.5)*simScale,sy:simCY-fy*simScale};}
+
+function spawnParticle(){
+  let x,y,tries=0;
+  do{ y=-0.80+Math.random()*1.60; x=-0.58; tries++; }
+  while(ptInFoil(x,y)&&tries<15);
+  return{x,y,trail:[],age:0};
+}
+
+function resetParticles(){
+  const N=parseInt(document.getElementById('pcount').value);
+  particles=[];
+  for(let i=0;i<N;i++){
+    const p=spawnParticle();
+    p.x=-0.58+Math.random()*2.2;
+    p.y=-0.80+Math.random()*1.60;
+    p.age=Math.floor(Math.random()*180);
+    if(ptInFoil(p.x,p.y)){p.x=-0.55;p.y=-0.80+Math.random()*1.60;}
+    particles.push(p);
+  }
+}
+
+function togglePause(){
+  paused=!paused;
+  document.getElementById('pauseBtn').textContent=paused?'▶ Resume':'⏸ Pause';
+  if(!paused)simLoop();
+}
+function toggleTrails(){
+  showTrails=!showTrails;
+  document.getElementById('trailBtn').textContent=showTrails?'〰 Hide trails':'〰 Show trails';
+}
+function toggleArrows(){
+  showArrows=!showArrows;
+  document.getElementById('arrowBtn').textContent=showArrows?'↗ Hide arrows':'↗ Show arrows';
+}
+
+function drawArrow(ctx,x1,y1,x2,y2,col,width,headLen){
+  const dx=x2-x1,dy=y2-y1,len=Math.sqrt(dx*dx+dy*dy);
+  if(len<2)return;
+  const ux=dx/len,uy=dy/len;
+  const hl=headLen||10;
+  ctx.beginPath();
+  ctx.moveTo(x1,y1);
+  ctx.lineTo(x2,y2);
+  ctx.strokeStyle=col;
+  ctx.lineWidth=width||2;
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(x2,y2);
+  ctx.lineTo(x2-(ux+uy*0.5)*hl, y2-(uy-ux*0.5)*hl);
+  ctx.lineTo(x2-(ux-uy*0.5)*hl, y2-(uy+ux*0.5)*hl);
+  ctx.closePath();
+  ctx.fillStyle=col;
+  ctx.fill();
+}
+
+function drawSurfaceArrows(ctx,aoa,foilPts,toS){
+  /* Orange arrows following the foil contour, like the reference image */
+  const ORANGE='#e8651a';
+  const allPts=[...foilPts.upper,...[...foilPts.lower].reverse()];
+  const step=Math.max(5,Math.floor(allPts.length/24));
+  for(let i=step;i<allPts.length-step;i+=step){
+    const p0=allPts[i-1], p1=allPts[i+1];
+    const{sx:sx0,sy:sy0}=toS(p0.x,p0.y);
+    const{sx:sx1,sy:sy1}=toS(p1.x,p1.y);
+    const mx=(sx0+sx1)/2, my=(sy0+sy1)/2;
+    const len=Math.sqrt((sx1-sx0)**2+(sy1-sy0)**2);
+    if(len<4)continue;
+    const ux=(sx1-sx0)/len,uy=(sy1-sy0)/len;
+    const arrowLen=22;
+    drawArrow(ctx,mx-ux*arrowLen*0.5,my-uy*arrowLen*0.5,
+                  mx+ux*arrowLen*0.5,my+uy*arrowLen*0.5,
+                  ORANGE,2.2,8);
+  }
+}
+
+function drawLiftArrow(ctx,aoa,cx,cy,scale){
+  const fsx=simCX+(-0.5)*simScale+simScale*0.5;
+  const fsy=simCY-0.35*simScale;
+  const liftLen=50;
+  drawArrow(ctx,fsx,fsy+liftLen,fsx,fsy-liftLen,'#2e7db8',3,13);
+  ctx.font='500 11px Inter,sans-serif';
+  ctx.fillStyle='#2e7db8';
+  ctx.textAlign='center';
+  ctx.fillText('Lift',fsx,fsy-liftLen-6);
+  ctx.textAlign='left';
+}
+
+function drawDownwashArrow(ctx,aoa){
+  const{sx,sy}=toSimS(1.35, -0.22);
+  drawArrow(ctx,sx,sy-28,sx,sy+28,'#2e7db8',3,12);
+  ctx.font='500 10px Inter,sans-serif';
+  ctx.fillStyle='#2e7db8';
+  ctx.textAlign='center';
+  ctx.fillText('Downwash',sx,sy+44);
+  ctx.textAlign='left';
+}
+
+function drawPressureLabels(ctx,aoa){
+  const{sx:tx,sy:ty}=toSimS(0.4,0.28);
+  ctx.font='500 11px Inter,sans-serif';
+  ctx.fillStyle='#2e7db8';
+  ctx.textAlign='center';
+  ctx.fillText('Pressure reduced at top',tx,ty);
+  const{sx:bx,sy:by}=toSimS(0.38,-0.28);
+  ctx.fillStyle='#c0392b';
+  ctx.fillText('Pressure increased underneath',bx,by);
+  ctx.textAlign='left';
+}
+
+let currentMaxSpeed=0;
+
+function simLoop(){
+  if(paused)return;
+  animId=requestAnimationFrame(simLoop);
+  frameCount++;
+
+  const aoa=parseFloat(document.getElementById('aoa').value)*Math.PI/180;
+  const U=parseFloat(document.getElementById('spd').value);
+  const trailLen=parseInt(document.getElementById('trail').value);
+  const targetN=parseInt(document.getElementById('pcount').value);
+  const dt=0.007/Math.max(U,0.5);
+
+  sctx.fillStyle='#f0ede6';
+  sctx.fillRect(0,0,simW,simH);
+
+  while(particles.length<targetN)particles.push(spawnParticle());
+  while(particles.length>targetN)particles.pop();
+
+  currentMaxSpeed=0;
+
+  /* Far-field orange inflow arrows on left */
+  if(showArrows){
+    for(let i=0;i<7;i++){
+      const fy=-0.65+i*(1.3/6);
+      const{sx:ax,sy:ay}=toSimS(-0.55,fy);
+      drawArrow(sctx,ax-28,ay,ax-4,ay,'#e8651a',2.5,9);
+    }
+  }
+
+  for(const p of particles){
+    const{ux,uy}=velocity(p.x,p.y,aoa,U);
+    const sp=Math.sqrt(ux*ux+uy*uy);
+    if(sp>currentMaxSpeed)currentMaxSpeed=sp;
+    const dts=dt/Math.max(sp,0.08);
+    p.x+=ux*dts; p.y+=uy*dts; p.age++;
+
+    if(p.x<-0.62||p.x>1.88||p.y<-0.88||p.y>0.88||ptInFoil(p.x,p.y)){
+      const np=spawnParticle(); p.x=np.x; p.y=np.y; p.trail=[]; p.age=0; continue;
+    }
+
+    const frac=Math.max(0,Math.min(1,(sp-U*0.5)/(U*1.6+0.01)));
+    const r=Math.round(24+(186-24)*frac), g=Math.round(95+(117-95)*frac), b=Math.round(165+(23-165)*frac);
+    const col=`rgba(${r},${g},${b}`;
+
+    p.trail.push({x:p.x,y:p.y,col});
+    if(p.trail.length>trailLen)p.trail.shift();
+
+    if(showTrails&&p.trail.length>1){
+      for(let i=1;i<p.trail.length;i++){
+        const t=i/p.trail.length;
+        const alpha=(Math.pow(t,1.3)*0.72).toFixed(2);
+        const{sx:x1,sy:y1}=toSimS(p.trail[i-1].x,p.trail[i-1].y);
+        const{sx:x2,sy:y2}=toSimS(p.trail[i].x,p.trail[i].y);
+        sctx.beginPath(); sctx.moveTo(x1,y1); sctx.lineTo(x2,y2);
+        sctx.strokeStyle=`${p.trail[i].col},${alpha})`;
+        sctx.lineWidth=1.1; sctx.stroke();
+      }
+    }
+    const{sx,sy}=toSimS(p.x,p.y);
+    sctx.beginPath(); sctx.arc(sx,sy,1.7,0,2*Math.PI);
+    sctx.fillStyle=`${col},0.88)`; sctx.fill();
+  }
+
+  /* Draw foil — matching reference: blue-gray fill */
+  sctx.beginPath();
+  let first=true;
+  for(const p of FOIL.upper){
+    const{sx,sy}=toSimS(p.x,p.y);
+    if(first){sctx.moveTo(sx,sy);first=false;}else sctx.lineTo(sx,sy);
+  }
+  for(const p of [...FOIL.lower].reverse()){
+    const{sx,sy}=toSimS(p.x,p.y);
+    sctx.lineTo(sx,sy);
+  }
+  sctx.closePath();
+  sctx.fillStyle='#6a8fa8'; sctx.fill();
+  sctx.strokeStyle='#3d6478'; sctx.lineWidth=1.5; sctx.stroke();
+
+  /* Surface flow arrows (orange, like reference) */
+  if(showArrows){
+    drawSurfaceArrows(sctx,aoa,FOIL,toSimS);
+    if(Math.abs(aoa)>0.05)drawLiftArrow(sctx,aoa,simCX,simCY,simScale);
+    drawDownwashArrow(sctx,aoa);
+    drawPressureLabels(sctx,aoa);
+  }
+
+  /* Stagnation points */
+  const leX=0.5-0.45*Math.cos(aoa), leY=-0.10*Math.sin(aoa);
+  const stagF=findStag(leX,leY,aoa,U);
+  const stagR=findStag(0.98,0.003,aoa,U);
+
+  function drawDot(pt,col,lbl,above){
+    const{sx,sy}=toSimS(pt.fx,pt.fy);
+    sctx.beginPath(); sctx.arc(sx,sy,6,0,2*Math.PI);
+    sctx.fillStyle=col; sctx.fill();
+    sctx.strokeStyle='#f0ede6'; sctx.lineWidth=2; sctx.stroke();
+    sctx.font='600 11px Inter,sans-serif';
+    sctx.fillStyle=col; sctx.textAlign='center';
+    sctx.fillText(lbl,sx,sy+(above?-11:18));
+    sctx.textAlign='left';
+  }
+  drawDot(stagF,'#c0392b','S₁',true);
+  drawDot(stagR,'#27ae60','S₂',false);
+
+  /* Speed legend */
+  sctx.font='11px DM Mono,monospace';
+  sctx.fillStyle='rgba(24,95,165,0.8)'; sctx.fillRect(14,14,20,4);
+  sctx.fillStyle='#6b6860'; sctx.fillText('slow',38,20);
+  sctx.fillStyle='rgba(186,117,23,0.8)'; sctx.fillRect(80,14,20,4);
+  sctx.fillStyle='#6b6860'; sctx.fillText('fast',104,20);
+
+  const aoaDeg=parseFloat(document.getElementById('aoa').value);
+  sctx.fillStyle='#6b6860';
+  sctx.fillText(`NACA 0012  |  α = ${aoaDeg}°  |  U∞ = ${U} m/s`, 14, simH-12);
+
+  /* Update stats every 10 frames */
+  if(frameCount%10===0){
+    const aoaR=aoa;
+    const CL=(2*Math.PI*Math.sin(aoaR)).toFixed(3);
+    const Gamma=(2*Math.PI*Math.sin(aoaR)*U*1.0).toFixed(3);
+    document.getElementById('cl').textContent=CL;
+    document.getElementById('gamma').textContent=Gamma+' m²/s';
+    document.getElementById('sf').textContent='x = '+stagF.fx.toFixed(3);
+    document.getElementById('vm').textContent=currentMaxSpeed.toFixed(2)+' m/s';
+  }
+}
+
+/* ════════════════════════════════════════════
+   SECTION 2 — Circulation chart
+   ════════════════════════════════════════════ */
+function drawCirculationChart(){
+  const cv=document.getElementById('circCanvas');
+  const cc=cv.getContext('2d');
+  const W=cv.width, H=cv.height;
+  const pad={l:60,r:20,t:30,b:50};
+  const pw=W-pad.l-pad.r, ph=H-pad.t-pad.b;
+
+  cc.fillStyle='#fff'; cc.fillRect(0,0,W,H);
+
+  const alphas=[];
+  for(let a=-12;a<=18;a+=0.5)alphas.push(a);
+
+  const CLs=alphas.map(a=>2*Math.PI*Math.sin(a*Math.PI/180));
+  const Gammas=alphas.map(a=>2*Math.PI*Math.sin(a*Math.PI/180)*2.0);
+  const Vrats=alphas.map(a=>1+Math.abs(Math.sin(a*Math.PI/180))*1.8);
+
+  const minCL=Math.min(...CLs), maxCL=Math.max(...CLs);
+  const minA=-12, maxA=18;
+
+  function ax(a){return pad.l+(a-minA)/(maxA-minA)*pw;}
+  function ay(v,mn,mx){return pad.t+ph-(v-mn)/(mx-mn)*ph;}
+
+  /* Grid */
+  cc.strokeStyle='#e2e0d8'; cc.lineWidth=0.5;
+  for(let a=-12;a<=18;a+=3){
+    cc.beginPath(); cc.moveTo(ax(a),pad.t); cc.lineTo(ax(a),pad.t+ph); cc.stroke();
+    cc.font='10px DM Mono,monospace'; cc.fillStyle='#9a9890'; cc.textAlign='center';
+    cc.fillText(a+'°',ax(a),pad.t+ph+16);
+  }
+  const CLincs=[-3,-2,-1,0,1,2,3];
+  CLincs.forEach(v=>{
+    cc.beginPath(); cc.moveTo(pad.l,ay(v,minCL,maxCL)); cc.lineTo(pad.l+pw,ay(v,minCL,maxCL)); cc.stroke();
+    cc.font='10px DM Mono,monospace'; cc.fillStyle='#9a9890'; cc.textAlign='right';
+    cc.fillText(v.toFixed(0),pad.l-6,ay(v,minCL,maxCL)+4);
+  });
+
+  /* Zero line */
+  cc.strokeStyle='#b0aea8'; cc.lineWidth=1;
+  cc.beginPath(); cc.moveTo(pad.l,ay(0,minCL,maxCL)); cc.lineTo(pad.l+pw,ay(0,minCL,maxCL)); cc.stroke();
+  cc.beginPath(); cc.moveTo(ax(0),pad.t); cc.lineTo(ax(0),pad.t+ph); cc.stroke();
+
+  /* CL curve */
+  cc.beginPath(); cc.strokeStyle='#2e7db8'; cc.lineWidth=2.2;
+  alphas.forEach((a,i)=>{ const x=ax(a),y=ay(CLs[i],minCL,maxCL); i===0?cc.moveTo(x,y):cc.lineTo(x,y); });
+  cc.stroke();
+
+  /* Gamma curve (scaled to CL axis) */
+  const gScale=maxCL/Math.max(...Gammas);
+  cc.beginPath(); cc.strokeStyle='#e8651a'; cc.lineWidth=2; cc.setLineDash([6,3]);
+  alphas.forEach((a,i)=>{ const x=ax(a),y=ay(Gammas[i]*gScale,minCL,maxCL); i===0?cc.moveTo(x,y):cc.lineTo(x,y); });
+  cc.stroke(); cc.setLineDash([]);
+
+  /* Vt/U ratio curve (scaled) */
+  const vtScale=maxCL/Math.max(...Vrats);
+  cc.beginPath(); cc.strokeStyle='#27ae60'; cc.lineWidth=2; cc.setLineDash([3,3]);
+  alphas.forEach((a,i)=>{ const x=ax(a),y=ay(Vrats[i]*vtScale,minCL,maxCL); i===0?cc.moveTo(x,y):cc.lineTo(x,y); });
+  cc.stroke(); cc.setLineDash([]);
+
+  /* Theoretical stall zone */
+  cc.fillStyle='rgba(192,57,43,0.08)';
+  cc.fillRect(ax(14),pad.t,ax(18)-ax(14),ph);
+  cc.font='10px Inter,sans-serif'; cc.fillStyle='#c0392b'; cc.textAlign='center';
+  cc.fillText('stall zone',ax(16),pad.t+14);
+
+  /* Axis labels */
+  cc.font='11px Inter,sans-serif'; cc.fillStyle='#1a1916'; cc.textAlign='center';
+  cc.fillText('Angle of attack α (degrees)',pad.l+pw/2,H-8);
+  cc.save(); cc.translate(16,pad.t+ph/2); cc.rotate(-Math.PI/2);
+  cc.textAlign='center'; cc.fillText('Coefficient / scaled value',0,0); cc.restore();
+
+  /* Legend */
+  const lx=pad.l+pw-150, ly=pad.t+10;
+  cc.font='11px Inter,sans-serif'; cc.textAlign='left';
+  [[`CL (lift coeff.)`, '#2e7db8', []],
+   [`Γ · scale (circulation)`, '#e8651a', [6,3]],
+   [`Vt/U (velocity ratio)`, '#27ae60', [3,3]]
+  ].forEach(([lbl,col,dash],i)=>{
+    cc.beginPath(); cc.setLineDash(dash); cc.strokeStyle=col; cc.lineWidth=2;
+    cc.moveTo(lx,ly+i*18+4); cc.lineTo(lx+24,ly+i*18+4); cc.stroke(); cc.setLineDash([]);
+    cc.fillStyle='#1a1916'; cc.fillText(lbl,lx+30,ly+i*18+8);
+  });
+  cc.textAlign='left';
+}
+
+/* ════════════════════════════════════════════
+   SECTION 3 — Cp chart
+   ════════════════════════════════════════════ */
+function drawCp(){
+  const cv=document.getElementById('cpCanvas');
+  const cc=cv.getContext('2d');
+  const W=cv.width, H=cv.height;
+  const pad={l:55,r:20,t:20,b:45};
+  const pw=W-pad.l-pad.r, ph=H-pad.t-pad.b;
+  const aoa=parseFloat(document.getElementById('aoa').value)*Math.PI/180;
+  const U=2;
+
+  cc.fillStyle='#fff'; cc.fillRect(0,0,W,H);
+
+  const N=80;
+  const upperX=[],upperCp=[],lowerX=[],lowerCp=[];
+  for(let i=1;i<N;i++){
+    const x=(1-Math.cos(i/N*Math.PI))/2;
+    const y=naca0012y(x);
+    /* tangential velocity approximation */
+    const e=0.002;
+    const{ux:u1,uy:v1}=velocity(x,y+e,aoa,U);
+    const{ux:u2,uy:v2}=velocity(x,y-e,aoa,U);
+    const Vt_up=Math.sqrt(u1*u1+v1*v1);
+    const Vt_lo=Math.sqrt(u2*u2+v2*v2);
+    upperX.push(x); upperCp.push(1-(Vt_up/U)**2);
+    lowerX.push(x); lowerCp.push(1-(Vt_lo/U)**2);
+  }
+
+  const allCp=[...upperCp,...lowerCp];
+  const minCp=Math.min(...allCp)-0.1, maxCp=Math.max(...allCp)+0.1;
+
+  function ax(x){return pad.l+x*pw;}
+  function ay(v){return pad.t+ph-(v-minCp)/(maxCp-minCp)*ph;}
+
+  /* Grid */
+  cc.strokeStyle='#e2e0d8'; cc.lineWidth=0.5;
+  [0,0.2,0.4,0.6,0.8,1.0].forEach(x=>{
+    cc.beginPath(); cc.moveTo(ax(x),pad.t); cc.lineTo(ax(x),pad.t+ph); cc.stroke();
+    cc.font='10px DM Mono,monospace'; cc.fillStyle='#9a9890'; cc.textAlign='center';
+    cc.fillText(x.toFixed(1),ax(x),pad.t+ph+16);
+  });
+  for(let v=Math.ceil(minCp);v<=Math.floor(maxCp);v++){
+    cc.beginPath(); cc.moveTo(pad.l,ay(v)); cc.lineTo(pad.l+pw,ay(v)); cc.stroke();
+    cc.font='10px DM Mono,monospace'; cc.fillStyle='#9a9890'; cc.textAlign='right';
+    cc.fillText(v.toFixed(0),pad.l-5,ay(v)+4);
+  }
+
+  /* Cp=1 stagnation reference */
+  cc.strokeStyle='#b0aea8'; cc.lineWidth=1; cc.setLineDash([4,3]);
+  cc.beginPath(); cc.moveTo(pad.l,ay(1)); cc.lineTo(pad.l+pw,ay(1)); cc.stroke();
+  cc.setLineDash([]);
+  cc.font='10px Inter,sans-serif'; cc.fillStyle='#b0aea8'; cc.textAlign='left';
+  cc.fillText('Cp = 1 (stagnation)',pad.l+4,ay(1)-4);
+
+  /* Upper surface */
+  cc.beginPath(); cc.strokeStyle='#2e7db8'; cc.lineWidth=2.2;
+  upperX.forEach((x,i)=>i===0?cc.moveTo(ax(x),ay(upperCp[i])):cc.lineTo(ax(x),ay(upperCp[i])));
+  cc.stroke();
+
+  /* Lower surface */
+  cc.beginPath(); cc.strokeStyle='#e8651a'; cc.lineWidth=2;
+  lowerX.forEach((x,i)=>i===0?cc.moveTo(ax(x),ay(lowerCp[i])):cc.lineTo(ax(x),ay(lowerCp[i])));
+  cc.stroke();
+
+  /* Labels */
+  cc.font='11px Inter,sans-serif'; cc.fillStyle='#1a1916'; cc.textAlign='center';
+  cc.fillText('x/c (chord position)',pad.l+pw/2,H-8);
+  cc.save(); cc.translate(14,pad.t+ph/2); cc.rotate(-Math.PI/2);
+  cc.fillText('Pressure coefficient Cp',0,0); cc.restore();
+
+  /* Legend */
+  cc.font='11px Inter,sans-serif'; cc.textAlign='left';
+  [['Upper surface',`#2e7db8`],['Lower surface',`#e8651a`]].forEach(([l,c],i)=>{
+    cc.beginPath(); cc.strokeStyle=c; cc.lineWidth=2;
+    cc.moveTo(pad.l+pw-160,pad.t+10+i*18); cc.lineTo(pad.l+pw-136,pad.t+10+i*18); cc.stroke();
+    cc.fillStyle='#1a1916'; cc.fillText(l,pad.l+pw-130,pad.t+14+i*18);
+  });
+  cc.textAlign='left';
+
+  const aoaDeg=parseFloat(document.getElementById('aoa').value);
+  cc.font='11px DM Mono,monospace'; cc.fillStyle='#9a9890';
+  cc.fillText(`α = ${aoaDeg}°`,pad.l+6,pad.t+14);
+}
+
+/* ════════════════════════════════════════════
+   Resize & init
+   ════════════════════════════════════════════ */
+function resizeAll(){
+  simCanvas.width=simCanvas.offsetWidth;
+  simCanvas.height=460;
+  updateSimLayout();
+
+  const circCv=document.getElementById('circCanvas');
+  circCv.width=circCv.offsetWidth;
+  circCv.height=300;
+  drawCirculationChart();
+
+  const cpCv=document.getElementById('cpCanvas');
+  cpCv.width=cpCv.offsetWidth;
+  cpCv.height=260;
+  drawCp();
+}
+
+document.getElementById('aoa').oninput=e=>document.getElementById('aoa-v').textContent=e.target.value+'°';
+document.getElementById('spd').oninput=e=>document.getElementById('spd-v').textContent=e.target.value+' m/s';
+document.getElementById('pcount').oninput=e=>document.getElementById('pcount-v').textContent=e.target.value;
+document.getElementById('trail').oninput=e=>document.getElementById('trail-v').textContent=e.target.value;
+
+window.addEventListener('resize',()=>{resizeAll();});
+setTimeout(()=>{resizeAll(); resetParticles(); simLoop(); drawCp();},120);
+</script>
+</body>
+</html>
